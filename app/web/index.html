@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B站视频总结</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <h1 class="brand">视频内容提炼AI</h1>
+
+    <section class="side-card">
+      <label class="field">
+        <span>平台</span>
+        <select id="platform"></select>
+      </label>
+      <label class="field">
+        <span>视频链接 / BV 号</span>
+        <input id="url" type="text" placeholder="BV1xx 或 https://b23.tv/...">
+      </label>
+      <label class="field">
+        <span>分P（0 = 自动取链接里的 p）</span>
+        <input id="part" type="number" min="0" value="0">
+      </label>
+      <label class="field">
+        <span>模式</span>
+        <select id="mode">
+          <option value="auto">自动获取</option>
+          <option value="manual">手动（按勾选获取）</option>
+        </select>
+      </label>
+      <div class="field">
+        <span>数据源（仅手动模式生效）</span>
+        <div class="source-list">
+          <label class="source-item"><input id="use_subtitle" type="checkbox"><span>B站字幕</span></label>
+          <label class="source-item"><input id="use_asr" type="checkbox"><span>本地ASR</span></label>
+          <label class="source-item"><input id="use_ocr" type="checkbox"><span>本地OCR</span></label>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="start" class="primary">开始</button>
+        <button id="cancel" disabled>取消</button>
+      </div>
+    </section>
+
+    <section class="side-card">
+      <div class="card-title">LLM 配置</div>
+      <div class="field">
+        <span>模型来源</span>
+        <div class="source-list">
+          <label class="source-item"><input type="radio" name="llm_source" value="local" checked><span>local</span></label>
+          <label class="source-item"><input type="radio" name="llm_source" value="public"><span>public</span></label>
+        </div>
+      </div>
+      <div id="llm-local">
+        <label class="field checkbox"><input id="keep_llm" type="checkbox"><span>LLM 常驻</span></label>
+      </div>
+      <div id="llm-public" class="hidden">
+        <label class="field">
+          <span>base_url</span>
+          <input id="base_url" type="text" placeholder="https://api.openai.com/v1" autocomplete="off">
+        </label>
+        <label class="field">
+          <span>api_key</span>
+          <input id="api_key" type="password" placeholder="sk-..." autocomplete="off">
+        </label>
+        <label class="field">
+          <span>model</span>
+          <input id="model" type="text" placeholder="gpt-4o-mini" autocomplete="off">
+        </label>
+        <div class="hint">填写后自动保存在本地，下次启动自动填充；接口需兼容 OpenAI 的 chat/completions。</div>
+      </div>
+    </section>
+
+    <section class="side-card">
+      <details class="advanced">
+        <summary>高级配置</summary>
+        <div class="advanced-body">
+          <label class="field">
+            <span>OCR 区域</span>
+            <select id="ocr_region">
+              <option value="bottom">底部字幕带</option>
+              <option value="center">画面中部</option>
+              <option value="full">全画面</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>ASR 设备</span>
+            <select id="asr_device">
+              <option value="auto">自动GPU</option>
+              <option value="cpu">CPU</option>
+            </select>
+          </label>
+          <label class="field"><span>热词（空格分隔）</span><input id="hotword" type="text"></label>
+          <label class="field"><span>分段最大字符</span><input id="max_chars" type="number" min="1000" step="1000"></label>
+        </div>
+      </details>
+    </section>
+
+    <section class="side-card">
+      <div class="env-title">本地状态</div>
+      <div class="env-list">
+        <div class="env-row">
+          <span class="env-name">Cookie</span>
+          <span class="env-state" id="env-cookie">检测中…</span>
+          <button class="mini" id="btn-cookie">扫码刷新</button>
+        </div>
+        <div class="env-row">
+          <span class="env-name">LLM</span>
+          <span class="env-state" id="env-llm">检测中…</span>
+          <button class="mini" id="btn-llm">下载模型</button>
+        </div>
+        <div class="env-row">
+          <span class="env-name">ASR</span>
+          <span class="env-state" id="env-asr">检测中…</span>
+          <button class="mini" id="btn-asr">安装</button>
+        </div>
+        <div class="env-row">
+          <span class="env-name">OCR</span>
+          <span class="env-state" id="env-ocr">检测中…</span>
+          <button class="mini" id="btn-ocr">安装</button>
+        </div>
+        <div class="env-row">
+          <span class="env-name">ffmpeg</span>
+          <span class="env-state" id="env-ffmpeg">检测中…</span>
+          <button class="mini" id="btn-ffmpeg">安装</button>
+        </div>
+      </div>
+    </section>
+  </aside>
+
+  <main class="main">
+    <section class="results">
+      <div class="results-head">
+        <span class="section-title">查看结果</span>
+        <button id="refresh" class="mini" title="重新读取整个 out 目录">刷新</button>
+      </div>
+      <ul id="history" class="history"><li class="muted">暂无</li></ul>
+    </section>
+
+    <section class="progress-card">
+      <div class="progress-head">
+        <span class="section-title">运行进展</span>
+        <span class="progress-state">
+          <span id="stage" class="stage">空闲</span>
+          <span id="pct" class="pct"></span>
+        </span>
+      </div>
+      <div class="bar"><div id="bar"></div></div>
+      <div id="msg" class="msg"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">运行日志</div>
+      <pre id="log" class="log"></pre>
+    </section>
+  </main>
+</div>
+
+<div id="loginModal" class="modal hidden">
+  <div class="modal-card">
+    <h2>扫码登录</h2>
+    <div id="qr-box" class="qr-box">生成中…</div>
+    <p id="qr-state" class="muted"></p>
+    <div class="modal-actions">
+      <button id="login-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div id="warnModal" class="modal hidden">
+  <div class="modal-card wide">
+    <h2>无法开始</h2>
+    <p id="warn-text" class="warn-text"></p>
+    <div class="modal-actions">
+      <button id="warn-close">知道了</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

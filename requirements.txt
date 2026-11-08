@@ -1,0 +1,28 @@
+# 基础依赖（抓取 / 下载 / 进度）
+requests>=2.31
+tqdm>=4.66
+openai>=1.30
+
+# 扫码登录（python main.py --login）
+qrcode>=7.4
+pillow>=10.0
+
+# GUI（python -m app.desktop / start_gui.bat / start_gui.sh）
+# Linux 另需系统 GTK + WebKit2（pywebview 后端），macOS 另需 pyobjc
+fastapi>=0.110
+uvicorn>=0.29
+pywebview>=5.0
+
+# OCR：抽帧 + 硬字幕识别
+opencv-python>=4.8
+rapidocr-onnxruntime>=1.3
+# 有 NVIDIA 显卡时用 onnxruntime-gpu 替换 onnxruntime，可走 CUDA 推理
+onnxruntime>=1.16
+
+# ASR：Fun-ASR-Nano（GUI 的“安装”按钮会自动补装依赖并下载模型）
+funasr>=1.3.27
+modelscope>=1.11
+torch>=2.0
+torchaudio>=2.0
+tiktoken>=0.5
+safetensors>=0.4
