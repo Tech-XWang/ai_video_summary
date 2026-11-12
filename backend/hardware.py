@@ -2,6 +2,7 @@
 """硬件探测：系统内存、GPU 后端（CUDA / Vulkan / Metal）与可用显存估算。"""
 
 import glob
+import json
 import os
 import re
 import shutil
@@ -18,7 +19,7 @@ def _system_ram_gb() -> float:
     if sys.platform == "darwin":
         try:
             out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True,
-                                 text=True, timeout=5).stdout.strip()
+                                 text=True, errors="replace", timeout=5).stdout.strip()
             return float(out) / (1024 ** 3)
         except Exception:
             return 0.0
@@ -94,7 +95,7 @@ def _nvidia_info() -> Tuple[float, str]:
         try:
             out = subprocess.run(
                 ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=10,
+                capture_output=True, text=True, errors="replace", timeout=10,
             ).stdout.strip()
             for row in out.splitlines():
                 parts = [p.strip() for p in row.split(",")]
@@ -149,9 +150,11 @@ def _windows_wmi_gpus() -> list:
     """注册表拿不到时的兜底：PowerShell CIM 查询。"""
     try:
         out = subprocess.run(
+            # 让 PowerShell 以 UTF-8 输出，避免中文显卡名在非中文系统上解码失败
             ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+             "[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; "
              "Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM | ConvertTo-Json -Compress"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15,
         ).stdout.strip()
         data = json.loads(out) if out else []
     except Exception:
@@ -208,7 +211,8 @@ def _detect_gpu() -> dict:
         name = "Apple GPU"
         try:
             cpu = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"],
-                                 capture_output=True, text=True, timeout=5).stdout.strip()
+                                 capture_output=True, text=True, errors="replace",
+                                 timeout=5).stdout.strip()
             if cpu:
                 name = cpu
         except Exception:

@@ -19,7 +19,7 @@ import sys
 from app.service import JobParams, NoContentError, run_job
 from backend import bilibili_api
 from backend.config import OUT_DIR
-from backend.utils import log
+from backend.utils import log, setup_stdio
 
 # 调试开关：由 --debug 参数打开，异常时输出完整堆栈
 DEBUG = False
@@ -71,6 +71,7 @@ def run(args: argparse.Namespace) -> int:
 
 def main() -> int:
     global DEBUG
+    setup_stdio()
     ap = build_parser()
     args = ap.parse_args()
     DEBUG = args.debug

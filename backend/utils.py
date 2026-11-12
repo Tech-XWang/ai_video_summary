@@ -15,6 +15,19 @@ class Cancelled(Exception):
     """任务被用户取消。"""
 
 
+def setup_stdio() -> None:
+    """让标准输出遇到无法编码的字符时替换而不是抛 UnicodeEncodeError。
+
+    Windows 把输出重定向到非 UTF-8 代码页（如英文系统的 cp1252）时，
+    中文日志会让 print 直接报错，进而中断整个任务。
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 # --- 三个可注入的 hook：CLI 用默认实现，GUI 换成事件推送 ---
 _log_hook: Optional[Callable[[str], None]] = None
 _reporter: Optional[Callable[[str, float, str], None]] = None

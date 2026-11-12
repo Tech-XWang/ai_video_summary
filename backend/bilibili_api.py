@@ -7,6 +7,7 @@
 
 import hashlib
 import io
+import locale
 import os
 import re
 import sys
@@ -30,30 +31,40 @@ HTTP.headers.update(HEADERS)
 # ---------------------------------------------------------------------------
 # Cookie / 登录
 # ---------------------------------------------------------------------------
+def _read_cookie_lines(path: str) -> List[str]:
+    """读取 Cookie 文件；兼容被编辑器另存为 ANSI/GBK 的情况。"""
+    encodings = ["utf-8", locale.getpreferredencoding(False), "gbk"]
+    for enc in dict.fromkeys(encodings):
+        try:
+            with open(path, "r", encoding=enc) as f:
+                return [ln.strip() for ln in f if ln.strip() and not ln.startswith("#")]
+        except UnicodeDecodeError:
+            continue
+        except OSError:
+            return []
+    return []
+
+
 def load_cookie(explicit: Optional[str] = None, cookie_file: Optional[str] = None) -> str:
     """返回可直接放进请求头的 Cookie 字符串，取不到则返回空串。"""
     if explicit:
         return explicit.strip()
     path = cookie_file or COOKIE_FILE
     if os.path.isfile(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                lines = [ln.strip() for ln in f if ln.strip() and not ln.startswith("#")]
-            if lines:
-                parts: List[str] = []
-                for ln in lines:
-                    for kv in ln.split(";"):
-                        kv = kv.strip()
-                        if not kv:
-                            continue
-                        # 兼容只粘贴 SESSDATA 值、漏写键名的情况
-                        if "=" not in kv and len(kv) > 20:
-                            kv = "SESSDATA=" + kv
-                        parts.append(kv)
-                if parts:
-                    return "; ".join(parts)
-        except OSError:
-            pass
+        lines = _read_cookie_lines(path)
+        if lines:
+            parts: List[str] = []
+            for ln in lines:
+                for kv in ln.split(";"):
+                    kv = kv.strip()
+                    if not kv:
+                        continue
+                    # 兼容只粘贴 SESSDATA 值、漏写键名的情况
+                    if "=" not in kv and len(kv) > 20:
+                        kv = "SESSDATA=" + kv
+                    parts.append(kv)
+            if parts:
+                return "; ".join(parts)
     sess = os.environ.get("BILI_SESSDATA", "").strip()
     return f"SESSDATA={sess}" if sess else ""
 

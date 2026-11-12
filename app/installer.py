@@ -33,7 +33,7 @@ def _req(*names: str) -> list:
     found = set()
     deps = []
     try:
-        with open(REQUIREMENTS, "r", encoding="utf-8") as f:
+        with open(REQUIREMENTS, "r", encoding="utf-8", errors="replace") as f:
             for raw in f:
                 line = raw.split("#", 1)[0].strip()
                 if not line or line.startswith("-"):
@@ -169,6 +169,8 @@ class EnvManager:
         proc = subprocess.Popen(
             cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, encoding="utf-8", errors="replace",
+            # 强制 pip 以 UTF-8 输出，避免中文提示在 GBK 环境下被替换成乱码
+            env={**os.environ, "PYTHONIOENCODING": "utf-8"},
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
         lines = []

@@ -60,7 +60,7 @@ def media_duration(src: str) -> float:
         out = subprocess.run(
             [probe, "-v", "error", "-show_entries", "format=duration",
              "-of", "default=nw=1:nk=1", src],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, errors="replace", timeout=30,
         ).stdout.strip()
         return max(0.0, float(out))
     except Exception:
