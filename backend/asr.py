@@ -11,7 +11,7 @@ import time
 from typing import List
 
 from .config import ASR_MODEL_DIR, ASR_MODEL_REPO, ASR_MODELS_DIR, ASR_VAD_DIR, ASR_VAD_REPO, PROJECT_DIR
-from .models import Cue
+from .cues import Cue
 from .utils import Cancelled, Ticker, check_cancel, log, report
 
 PATHS_FILE = os.path.join(ASR_MODELS_DIR, "paths.json")

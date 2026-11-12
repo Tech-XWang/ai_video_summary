@@ -15,7 +15,7 @@ import urllib.request
 
 import uvicorn
 
-from bilinote import llm, utils
+from backend import llm_client, utils
 
 from .server import create_app
 
@@ -84,13 +84,13 @@ def main() -> int:
         # pywebview 加载 URL 是异步的，_wait_ready 只确认后端已就绪；
         # 给渲染层留一点时间，避免 create_window 过早触发 URL 加载。
         time.sleep(0.2)
-        webview.create_window("B站视频总结", url, width=1180, height=860, min_size=(960, 640),
+        webview.create_window("视频总结AI", url, width=1180, height=860, min_size=(960, 640),
                               text_select=True)
         webview.start()
         return 0
     finally:
         # 关窗/退出时释放本次启动的 llama-server 显存（外部已开的服务不动）
-        llm.stop_managed_llm()
+        llm_client.stop_managed_llm()
         server.should_exit = True
 
 

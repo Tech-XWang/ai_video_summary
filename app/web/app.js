@@ -12,13 +12,16 @@
   var ENV_ROWS = [
     { key: "cookie", state: "env-cookie", btn: "btn-cookie" },
     { key: "llm", state: "env-llm", btn: "btn-llm" },
+    { key: "llama", state: "env-llama", btn: "btn-llama" },
     { key: "asr", state: "env-asr", btn: "btn-asr" },
     { key: "ocr", state: "env-ocr", btn: "btn-ocr" },
     { key: "ffmpeg", state: "env-ffmpeg", btn: "btn-ffmpeg" }
   ];
 
   var el = function (id) { return document.getElementById(id); };
-  var state = { taskId: null, es: null, lastSeq: 0, loginTimer: null, loginKey: null, env: null };
+  var state = { taskId: null, es: null, lastSeq: 0, loginTimer: null, loginKey: null, env: null, pendingInstall: null };
+  var ENV_LABELS = { llm: "本地 LLM", llama: "llama.cpp", asr: "ASR", ocr: "OCR", ffmpeg: "FFmpeg", cookie: "Cookie" };
+  var BACKEND_LABELS = { cuda: "CUDA", vulkan: "Vulkan", metal: "Metal", cpu: "CPU" };
 
   function api(path, options) {
     options = options || {};
@@ -161,6 +164,8 @@
   }
 
   // ---------- 本地组件状态 ----------
+  var envPollTimer = null;
+
   function renderEnv(env) {
     var busy = env.installing || "";
     ENV_ROWS.forEach(function (row) {
@@ -168,29 +173,62 @@
       var node = el(row.state);
       node.textContent = data.label || "未知";
       node.title = data.label || "";
-      node.className = "env-state " + (data.ok ? "ok" : (data.running ? "run" : "bad"));
+      // 本地 LLM 额外展示识别到的 GPU 与推理后端，便于确认平台适配是否生效
+      if (row.key === "llm" && data.backend && data.backend !== "cpu") {
+        node.title += "\n" + (data.gpu || "") + " · " + (BACKEND_LABELS[data.backend] || data.backend) +
+          " · " + data.vram_gb + "GB" + (data.shared_mem ? "（共享内存）" : "（显存）");
+      }
+      var unsupported = row.key === "llm" && data.state === "unsupported";
+      // LLM 行只反映模型是否下载；运行时状态由 llama.cpp 行单独展示
+      var ok = row.key === "llm" ? (!unsupported && !!data.model_ok) : !!data.ok;
+      node.className = "env-state " + (ok ? "ok" : (data.running ? "run" : "bad"));
 
       var btn = el(row.btn);
       if (row.key === "cookie") {
         btn.disabled = false;
       } else {
-        var unsupported = row.key === "llm" && data.state === "unsupported";
-        // LLM 已就绪且与当前显存推荐档位一致时无需重复下载；旧模型/档位不一致仍可手动下载
-        var sameAsRecommended = row.key === "llm" && data.ok && data.model && data.recommended &&
+        // 模型已存在且与当前显存推荐档位一致时无需重复下载；旧模型/档位不一致仍可手动下载
+        var sameAsRecommended = row.key === "llm" && data.model && data.recommended &&
           data.model.size_gb &&
           Math.abs(data.model.size_gb - data.recommended.size_gb) < 0.2;
-        btn.disabled = !!busy || unsupported || sameAsRecommended;
+        // asr / ocr / ffmpeg / llama.cpp 已就绪时禁用安装按钮，避免重复执行安装
+        var ready = row.key !== "llm" && !!data.ok;
+        btn.disabled = !!busy || unsupported || sameAsRecommended || ready;
       }
     });
   }
 
   function refreshEnv() {
+    if (envPollTimer) {
+      clearTimeout(envPollTimer);
+      envPollTimer = null;
+    }
     return api("/api/env").then(function (env) {
+      var wasInstalling = (state.env && state.env.installing) || "";
       state.env = env;
       renderEnv(env);
+      // 安装结束后补一条日志：wasInstalling 覆盖轮询路径，pendingInstall 覆盖
+      // 安装太快、POST 返回前就已结束的路径。
+      var doneName = !env.installing && (wasInstalling || state.pendingInstall);
+      if (doneName) {
+        var info = env[doneName] || {};
+        var name = ENV_LABELS[doneName] || doneName;
+        if (info.ok) appendLog(name + " 安装完成：" + (info.label || "已就绪"));
+        else appendLog(name + " 安装未完成：" + (info.label || "请查看状态"), "error");
+        state.pendingInstall = null;
+      }
+      // 安装/下载在服务端后台线程执行，POST 返回时通常尚未结束；
+      // 安装期间保持轮询，结束后再拉一次即可看到最终状态。
+      if (env.installing) {
+        envPollTimer = setTimeout(refreshEnv, 1500);
+      }
       return env;
     }).catch(function (e) {
       appendLog("读取本地状态失败：" + e.message, "error");
+      // 仅在安装期间重试，避免无安装任务时反复刷错误日志
+      if (state.env && state.env.installing) {
+        envPollTimer = setTimeout(refreshEnv, 3000);
+      }
       return null;
     });
   }
@@ -198,6 +236,7 @@
   function install(name) {
     appendLog("开始处理本地组件：" + name);
     api("/api/env/" + name + "/install", { method: "POST" }).then(function (res) {
+      state.pendingInstall = name;
       appendLog((res && res.message) || ("已提交安装/下载任务：" + name));
       refreshEnv();
     }).catch(function (e) {
@@ -329,8 +368,10 @@
                    "\n\nGUI 任务需要本地 LLM。若只想导出转写稿，可运行：\n" +
                    "python main.py <视频链接> --no-llm");
         } else {
-          showWarn("本地 LLM 不可用：\n" + ((env.llm && env.llm.label) || "状态未知") +
-                   "\n\n请到「高级配置 → 本地状态」下载模型/运行时后再执行。");
+          var detail = (env.llm && env.llm.label) || "状态未知";
+          if (env.llm && env.llm.state === "no_runtime") detail += "，缺少 llama.cpp 运行时";
+          showWarn("本地 LLM 不可用：\n" + detail +
+                   "\n\n请到「高级配置 → 本地状态」下载模型 / 安装 llama.cpp 后再执行。");
         }
         return;
       }
@@ -424,6 +465,7 @@
     el("keep_llm").addEventListener("change", saveLlmConfig);
     el("btn-cookie").addEventListener("click", openLogin);
     el("btn-llm").addEventListener("click", function () { install("llm"); });
+    el("btn-llama").addEventListener("click", function () { install("llama"); });
     el("btn-asr").addEventListener("click", function () { install("asr"); });
     el("btn-ocr").addEventListener("click", function () { install("ocr"); });
     el("btn-ffmpeg").addEventListener("click", function () { install("ffmpeg"); });

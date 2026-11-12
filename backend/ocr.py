@@ -17,8 +17,8 @@ from typing import Dict, List, Tuple
 
 from tqdm import tqdm
 
-from .media import extract_frames
-from .models import Cue
+from .ffmpeg import extract_frames
+from .cues import Cue
 from .utils import check_cancel, is_meaningful, join_ocr, log, norm_text, report
 
 # 一帧出现多个识别区域时，字数超过阈值视为非字幕，整块舍弃。
@@ -37,7 +37,7 @@ def _find_spec(name: str) -> bool:
 
 def missing_dependencies() -> List[str]:
     return [
-        name for name in ("cv2", "rapidocr_onnxruntime", "onnxruntime")
+        name for name in ("cv2", "rapidocr", "onnxruntime")
         if not _find_spec(name)
     ]
 
@@ -77,7 +77,7 @@ def drop_long_regions(entries: List[Tuple[str, int]]) -> Tuple[List[Tuple[str, i
 def run_ocr(video: str, work: str, fps: float, region: str, diff_thr: float = 2.5) -> List[Cue]:
     try:
         import cv2
-        from rapidocr_onnxruntime import RapidOCR
+        from rapidocr import RapidOCR
     except ImportError as e:
         log(f"  OCR 依赖缺失（{e}），跳过画面识别")
         return []
@@ -96,18 +96,29 @@ def run_ocr(video: str, work: str, fps: float, region: str, diff_thr: float = 2.
 
         if hasattr(ort, "preload_dlls"):
             ort.preload_dlls()
-        cuda_ok = "CUDAExecutionProvider" in ort.get_available_providers()
+        if "CUDAExecutionProvider" in ort.get_available_providers():
+            # get_available_providers 只反映编译能力；缺 CUDA/cuDNN 或 CPU/GPU 包混装时
+            # 仍会列出 CUDA。新版权限用 get_ep_devices 看真正注册成功的设备，避免
+            # 传入 use_cuda=True 后每个模型初始化都刷回退警告。
+            if hasattr(ort, "get_ep_devices"):
+                cuda_ok = any(
+                    d.ep_name == "CUDAExecutionProvider" for d in ort.get_ep_devices()
+                )
+            else:
+                cuda_ok = True
     except Exception as e:
         log(f"  [Warn] CUDA 预加载失败，OCR 使用 CPU：{e}")
 
-    # 限制检测输入为最长边 960（默认 min 模式下小图会被放大到 4096 宽）；
-    # 字幕不会倒置，关掉方向分类。det_model_path 传空串走默认模型路径。
+    # RapidOCR 3.x：参数按 config.yaml 的层级用点号书写；默认 min 模式会把
+    # 1280x216 的字幕条带放大 3 倍以上，这里保持限制最长边 960。
+    # 字幕不会倒置，关掉方向分类；CUDA 开关从 1.x 的 det_use_cuda 移到引擎配置层。
     engine = RapidOCR(
-        det_model_path="",
-        det_limit_type="max",
-        det_limit_side_len=960,
-        use_angle_cls=False,
-        det_use_cuda=cuda_ok,
+        params={
+            "Global.use_cls": False,
+            "Det.limit_type": "max",
+            "Det.limit_side_len": 960,
+            "EngineConfig.onnxruntime.use_cuda": cuda_ok,
+        }
     )
     # 第一遍：逐帧识别，按行收集。水印判定依赖"连续出现"的时长，所以先不合并文本。
     # frames 元素为 [起始时间, [(行文本, 连续链编号), ...], 该内容可见到的最后时间]
@@ -139,13 +150,17 @@ def run_ocr(video: str, work: str, fps: float, region: str, diff_thr: float = 2.
                 frames[-1][2] = t  # 上一帧内容持续到当前帧
             continue
         try:
-            res, _ = engine(img)
+            result = engine(img)
         except Exception:
+            continue
+        # 识别阶段失败时 3.x 可能只返回检测结果（TextDetOutput，没有 txts）
+        txts, scores = getattr(result, "txts", None), getattr(result, "scores", None)
+        if not txts or scores is None:
             continue
         entries = []
         seen = set()
-        for item in res or []:
-            txt, score = str(item[1]).strip(), float(item[2])
+        for txt, score in zip(txts, scores):
+            txt, score = str(txt).strip(), float(score)
             if score < 0.7 or not is_meaningful(txt):
                 continue
             n = norm_text(txt)

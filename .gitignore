@@ -1,6 +1,6 @@
 __pycache__/
 *.pyc
-.bili_cache/
+.cache/
 models/
 tools/
 out/

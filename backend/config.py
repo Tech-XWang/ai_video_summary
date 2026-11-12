@@ -7,7 +7,7 @@ import os
 PKG_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(PKG_DIR)
 
-CACHE_DIR = os.path.join(PROJECT_DIR, ".bili_cache")
+CACHE_DIR = os.path.join(PROJECT_DIR, ".cache")
 OUT_DIR = os.path.join(PROJECT_DIR, "out")
 COOKIE_FILE = os.path.join(PROJECT_DIR, "bili_cookie.txt")
 
@@ -39,8 +39,6 @@ LLAMA_HOST = "127.0.0.1"
 LLAMA_PORT = 8080
 LLAMA_ALIAS = "qwen38-27b"
 LLAMA_BASE = f"http://localhost:{LLAMA_PORT}/v1"
-# Ollama 同名模型名，仅用于启动前释放显存，不是文件路径
-OLLAMA_MODEL = "qwen38-27b-q3"
 # LLM 空闲多少秒后休眠：卸载权重与 KV cache 释放显存，下次请求自动重载
 LLAMA_SLEEP_IDLE = 5
 # 思考强度：low / medium / high。medium 可显著缩短推理长度与耗时

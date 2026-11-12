@@ -26,8 +26,6 @@ body {
   padding: 22px 22px 20px;
   overflow-y: auto;
 }
-.brand { font-size: 1.5rem; font-weight: 700; margin: 0 2px 18px; }
-
 .side-card {
   background: var(--card);
   border: 1px solid var(--card-line);

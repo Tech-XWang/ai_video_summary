@@ -3,14 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>B站视频总结</title>
+<title>视频总结AI</title>
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 <div class="app">
   <aside class="side">
-    <h1 class="brand">视频内容提炼AI</h1>
-
     <section class="side-card">
       <label class="field">
         <span>平台</span>
@@ -111,6 +109,11 @@
           <span class="env-name">LLM</span>
           <span class="env-state" id="env-llm">检测中…</span>
           <button class="mini" id="btn-llm">下载模型</button>
+        </div>
+        <div class="env-row">
+          <span class="env-name">llama.cpp</span>
+          <span class="env-state" id="env-llama">检测中…</span>
+          <button class="mini" id="btn-llama">安装</button>
         </div>
         <div class="env-row">
           <span class="env-name">ASR</span>

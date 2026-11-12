@@ -19,7 +19,7 @@ import requests
 from tqdm import tqdm
 
 from .config import API, CACHE_DIR, COOKIE_FILE, HEADERS
-from .models import Cue
+from .cues import Cue
 from .utils import coverage, log
 
 # 复用 TCP 连接；每次请求仍可通过 headers= 覆盖 Cookie

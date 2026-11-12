@@ -14,7 +14,7 @@ from dataclasses import asdict
 from typing import Dict, List, Optional
 
 from .config import INDEPENDENT_SRC, SRC_DESC
-from .models import Cue
+from .cues import Cue
 from .utils import fmt_ts, group_cues
 
 # 总结的三个固定章节（与 prompts 里的输出要求一致）

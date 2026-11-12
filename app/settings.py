@@ -2,14 +2,14 @@
 """GUI 配置：默认值 + LLM 相关字段的本地持久化。
 
 只有「模型来源 / LLM 常驻 / base_url / api_key / model」会写入
-``.bili_cache/config.json``；其余参数每次启动仍从默认值开始。
+``.cache/config.json``；其余参数每次启动仍从默认值开始。
 """
 
 import json
 import os
 from typing import Any, Dict
 
-from bilinote.config import CACHE_DIR, OUT_DIR
+from backend.config import CACHE_DIR, OUT_DIR
 
 CONFIG_PATH = os.path.join(CACHE_DIR, "config.json")
 PERSIST_KEYS = ("llm_source", "keep_llm", "base_url", "api_key", "model")

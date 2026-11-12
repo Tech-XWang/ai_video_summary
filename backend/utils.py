@@ -8,7 +8,7 @@ from typing import Callable, List, Optional, Tuple
 
 from tqdm import tqdm
 
-from .models import Cue
+from .cues import Cue
 
 
 class Cancelled(Exception):

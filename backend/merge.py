@@ -8,19 +8,10 @@
 from typing import Dict, List, Tuple
 
 from .config import INDEPENDENT_SRC, SRC_DESC
-from .models import Cue
+from .cues import Cue
 from .utils import log, norm_text
 
 _ORDER = ("cc", "ai-sub", "ocr", "asr")
-
-
-def pick_subtitle_track(groups: Dict[str, List[Cue]]) -> Tuple[List[Cue], str]:
-    """只在 B 站字幕内部按 人工 CC > AI 字幕 选一条（不含 OCR）。"""
-    keys = [k for k in ("cc", "ai-sub") if groups.get(k)]
-    if not keys:
-        return [], ""
-    key = keys[0]
-    return groups[key], key
 
 
 def merge_sources(groups: Dict[str, List[Cue]]) -> Tuple[List[Cue], str]:

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional, Tuple
 
 import requests
 
-from . import local_llm, prompts
+from . import llm_runtime, prompts
 from .config import (
     CACHE_DIR,
     LLAMA_BASE,
@@ -17,11 +17,10 @@ from .config import (
     LLAMA_PORT,
     LLAMA_SLEEP_IDLE,
     LLM_REASONING_EFFORT,
-    OLLAMA_MODEL,
     INDEPENDENT_SRC,
     SRC_DESC,
 )
-from .models import Cue
+from .cues import Cue
 from .utils import check_cancel, fmt_ts, group_cues, log, report
 
 # 探测模型列表/健康检查用的会话（与 B 站 HTTP 会话相互独立）
@@ -104,28 +103,20 @@ def start_local_llm() -> Optional[subprocess.Popen]:
         _wait_llama(None)
         return None
 
-    exe = local_llm.llama_server_exe()
-    model = local_llm.resolve_model_path()
+    exe = llm_runtime.llama_server_exe()
+    model = llm_runtime.resolve_model_path()
     if not exe or not model:
         log("  本地 LLM 未就绪：缺少 llama.cpp 运行时或模型文件")
         return None
 
     log("  未检测到 LLM 服务，启动 llama-server（需加载约1分钟）……")
-    # 先卸载 Ollama 里的同名模型，尽量释放显存（没装 Ollama 时静默跳过）
-    try:
-        subprocess.run(
-            ["ollama", "stop", OLLAMA_MODEL],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        pass
     os.makedirs(CACHE_DIR, exist_ok=True)
     log_path = os.path.join(CACHE_DIR, "llama-server.log")
     cmd = [
         exe, "-m", model,
-        "-ngl", "999", "--parallel", "1", "-c", str(local_llm.context_size()),
+        "-ngl", "999", "--parallel", "1", "-c", str(llm_runtime.context_size()),
         "-ctk", "q8_0", "-ctv", "q8_0", "-fa", "on",
-        "--reasoning-format", "deepseek", "--alias", local_llm.model_alias(),
+        "--reasoning-format", "deepseek", "--alias", llm_runtime.model_alias(),
         "--host", LLAMA_HOST, "--port", str(LLAMA_PORT),
         "--sleep-idle-seconds", str(LLAMA_SLEEP_IDLE),
     ]

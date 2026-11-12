@@ -8,8 +8,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from bilinote import utils
-from bilinote.utils import Cancelled
+from backend import utils
+from backend.utils import Cancelled
 
 from .events import Event, EventBus
 from .service import JobParams, MissingComponentError, NoContentError, run_job

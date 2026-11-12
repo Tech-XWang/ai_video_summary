@@ -13,15 +13,16 @@ fastapi>=0.110
 uvicorn>=0.29
 pywebview>=5.0
 
-# OCR：抽帧 + 硬字幕识别
+# OCR：抽帧 + 硬字幕识别（RapidOCR 3.x，默认 PP-OCRv6 small 模型）
 opencv-python>=4.8
-rapidocr-onnxruntime>=1.3
+rapidocr>=3.9,<4
 # 有 NVIDIA 显卡时用 onnxruntime-gpu 替换 onnxruntime，可走 CUDA 推理
 onnxruntime>=1.16
 
 # ASR：Fun-ASR-Nano（GUI 的“安装”按钮会自动补装依赖并下载模型）
 funasr>=1.3.27
 modelscope>=1.11
+sentencepiece>=0.1.99
 torch>=2.0
 torchaudio>=2.0
 tiktoken>=0.5

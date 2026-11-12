@@ -19,8 +19,8 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from bilinote import bili_api, media
-from bilinote.config import OCR_DIFF, OCR_FPS, OUT_DIR
+from backend import bilibili_api, ffmpeg
+from backend.config import OCR_DIFF, OCR_FPS, OUT_DIR
 
 from .events import EventBus
 from .installer import EnvManager
@@ -214,7 +214,7 @@ def create_app(token: str) -> FastAPI:
     @app.post("/api/env/{component}/install")
     def env_install(component: str, _=Depends(guard)):
         if component == "ffmpeg":
-            if media.ffmpeg_status().get("ok"):
+            if ffmpeg.ffmpeg_status().get("ok"):
                 return {"ok": True, "component": component,
                         "message": "ffmpeg 已可用，无需安装"}
             webbrowser.open(FFMPEG_DOWNLOAD_PAGE)
@@ -230,7 +230,7 @@ def create_app(token: str) -> FastAPI:
 
     @app.post("/api/login/start")
     def login_start(_=Depends(guard)):
-        key, png = bili_api.login_qr(login_sess)
+        key, png = bilibili_api.login_qr(login_sess)
         if not key or png is None:
             return JSONResponse({"ok": False, "message": "二维码生成失败"}, status_code=400)
         image = "data:image/png;base64," + base64.b64encode(png).decode()
@@ -238,10 +238,10 @@ def create_app(token: str) -> FastAPI:
 
     @app.get("/api/login/status")
     def login_status(key: str, _=Depends(guard)):
-        state, cookie = bili_api.login_poll(key, login_sess)
-        message = bili_api.LOGIN_STATE_MSG.get(state, "") if state is not None else ""
+        state, cookie = bilibili_api.login_poll(key, login_sess)
+        message = bilibili_api.LOGIN_STATE_MSG.get(state, "") if state is not None else ""
         if state == 0 and cookie:
-            bili_api.save_cookie(cookie)
+            bilibili_api.save_cookie(cookie)
             return {"state": 0, "message": "登录成功，Cookie 已保存", "saved": True}
         return {"state": state, "message": message, "saved": False}
 

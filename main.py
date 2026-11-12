@@ -17,9 +17,9 @@ import os
 import sys
 
 from app.service import JobParams, NoContentError, run_job
-from bilinote import bili_api
-from bilinote.config import OUT_DIR
-from bilinote.utils import log
+from backend import bilibili_api
+from backend.config import OUT_DIR
+from backend.utils import log
 
 # 调试开关：由 --debug 参数打开，异常时输出完整堆栈
 DEBUG = False
@@ -76,12 +76,12 @@ def main() -> int:
     DEBUG = args.debug
 
     if args.login:
-        bili_api.login_flow()
-        bili_api.print_manual_cookie_help()
+        bilibili_api.login_flow()
+        bilibili_api.print_manual_cookie_help()
         return 0
     if not args.url:
         ap.print_help()
-        bili_api.print_manual_cookie_help()
+        bilibili_api.print_manual_cookie_help()
         return 1
     return run(args)
 

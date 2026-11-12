@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """流水线：解析 → 并发下载资源（字幕/音频/视频）→ 音频 ASR → 画面 OCR → 汇合 → LLM → 导出。
 
-CLI 与 GUI 都调用 ``run_job``，进度与日志通过 bilinote.utils 的 hook 外发。
+CLI 与 GUI 都调用 ``run_job``，进度与日志通过 backend.utils 的 hook 外发。
 """
 
 import os
@@ -12,11 +12,11 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import List, Optional
 
-from bilinote import asr as asr_mod, export, llm, media, merge, ocr
-from bilinote import local_llm
-from bilinote.config import CACHE_DIR, OCR_DIFF, OCR_FPS, OUT_DIR
-from bilinote.models import Cue
-from bilinote.utils import coverage, fmt_ts, log, report, sanitize
+from backend import asr as asr_mod, export, ffmpeg, llm_client, merge, ocr
+from backend import llm_runtime
+from backend.config import CACHE_DIR, OCR_DIFF, OCR_FPS, OUT_DIR
+from backend.cues import Cue
+from backend.utils import coverage, fmt_ts, log, report, sanitize
 
 from .platforms import get_platform
 
@@ -136,16 +136,19 @@ def run_job(p: JobParams) -> dict:
                     + "。请在左侧「LLM 配置」中填写后重试。"
                 )
         elif not p.base_url:
-            llm_state = local_llm.status()
+            llm_state = llm_runtime.status()
             if not llm_state.get("ok"):
+                label = llm_state.get("label", "未就绪")
+                if llm_state.get("state") == "no_runtime":
+                    label += "，缺少 llama.cpp 运行时"
                 raise MissingComponentError(
-                    "本地 LLM 不可用：" + llm_state.get("label", "未就绪")
-                    + "。请到“高级配置 → 本地状态”下载模型/运行时后再执行。"
+                    "本地 LLM 不可用：" + label
+                    + "。请到“高级配置 → 本地状态”下载模型、安装 llama.cpp 后再执行。"
                 )
 
     cookie = platform.load_cookie(p.cookie, p.cookie_file)
     want_sub, want_asr, want_ocr = _wants(p)
-    ffmpeg_ok = media.ffmpeg_status().get("ok", False)
+    ffmpeg_ok = ffmpeg.ffmpeg_status().get("ok", False)
     if p.mode == "manual":
         missing = []
         if want_sub and not cookie:
@@ -280,7 +283,7 @@ def run_job(p: JobParams) -> dict:
     if want_asr:
         if audio_path:
             report("asr", 0.0, "音频转写")
-            wav = media.to_wav(audio_path, work)
+            wav = ffmpeg.to_wav(audio_path, work)
             if wav:
                 asr_cues = asr_mod.run_asr(wav, p.asr_device, hotwords, duration)
                 log(f"  ASR：{len(asr_cues)} 句，覆盖 {coverage(asr_cues, duration):.0%}")
@@ -347,7 +350,7 @@ def run_job(p: JobParams) -> dict:
     summary = None
     if not p.no_llm:
         log("\n[6/6] LLM 提炼……")
-        summary = llm.llm_summary(
+        summary = llm_client.llm_summary(
             groups, timeline, info.get("title", ""), video_url, duration,
             p.base_url, p.model, p.max_chars, keep_llm=p.keep_llm,
             desc=desc, tags=tags, llm_source=p.llm_source, api_key=p.api_key,

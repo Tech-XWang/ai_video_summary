@@ -2,14 +2,19 @@
 """本地组件状态检测与安装/下载调度（GUI 高级配置里的“本地状态”）。"""
 
 import importlib.util
+import os
+import re
 import subprocess
 import sys
 import threading
 from typing import Callable, Dict, Tuple
 
-from bilinote import asr, local_llm, media, ocr
+from backend import asr, llm_runtime, ffmpeg, ocr
 
 Progress = Callable[[float, str], None]
+
+REQUIREMENTS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "requirements.txt")
 
 
 def _find_spec(name: str) -> bool:
@@ -19,11 +24,35 @@ def _find_spec(name: str) -> bool:
         return False
 
 
+def _req(*names: str) -> list:
+    """从 requirements.txt 取指定包的版本约束，保持依赖声明单一来源。
+
+    未在文件中出现的包会以裸包名补上，避免安装时漏装。
+    """
+    wanted = {n.lower() for n in names}
+    found = set()
+    deps = []
+    try:
+        with open(REQUIREMENTS, "r", encoding="utf-8") as f:
+            for raw in f:
+                line = raw.split("#", 1)[0].strip()
+                if not line or line.startswith("-"):
+                    continue
+                pkg = re.split(r"[<>=!~\[;\s]", line, 1)[0].strip().lower()
+                if pkg in wanted:
+                    deps.append(line)
+                    found.add(pkg)
+    except OSError:
+        pass
+    deps.extend(n for n in names if n.lower() not in found)
+    return deps
+
+
 def cookie_status() -> dict:
     try:
-        from bilinote import bili_api
+        from backend import bilibili_api
 
-        cookie = bili_api.load_cookie()
+        cookie = bilibili_api.load_cookie()
     except Exception:
         cookie = ""
     ok = bool(cookie)
@@ -45,13 +74,14 @@ class EnvManager:
             states = {k: dict(v) for k, v in self._states.items()}
         data = {
             "cookie": cookie_status(),
-            "llm": local_llm.status(),
+            "llm": llm_runtime.status(),
+            "llama": llm_runtime.runtime_status(),
             "asr": asr.status(),
             "ocr": ocr.status(),
-            "ffmpeg": media.ffmpeg_status(),
+            "ffmpeg": ffmpeg.ffmpeg_status(),
             "installing": current,
         }
-        for name in ("llm", "asr", "ocr", "ffmpeg"):
+        for name in ("llm", "llama", "asr", "ocr", "ffmpeg"):
             st = states.get(name)
             if not st:
                 continue
@@ -70,7 +100,7 @@ class EnvManager:
 
     # ---------- 安装 ----------
     def start(self, name: str) -> Tuple[bool, str]:
-        if name not in ("llm", "asr", "ocr"):
+        if name not in ("llm", "llama", "asr", "ocr"):
             return False, "未知组件"
         with self._lock:
             if self._current:
@@ -106,26 +136,30 @@ class EnvManager:
 
     # ---------- 各组件动作 ----------
     def _install_llm(self, progress: Progress) -> None:
-        vram, _ = local_llm.gpu_info()
-        if local_llm.recommend(vram) is None:
-            raise RuntimeError(f"显存 {vram:.1f}GB ≤ 6GB，不支持本地 LLM 总结")
-        local_llm.ensure_runtime(progress)
-        local_llm.download_recommended(progress)
+        """只下载 GGUF 模型，运行时的安装由 _install_llama 单独负责。"""
+        gpu = llm_runtime.gpu_backend()
+        if llm_runtime.recommend(gpu["vram_gb"]) is None:
+            mem = "统一内存" if gpu["shared_mem"] else "显存"
+            raise RuntimeError(f"{mem} {gpu['vram_gb']:.1f}GB ≤ 6GB，不支持本地 LLM 总结")
+        llm_runtime.download_recommended(progress)
+
+    def _install_llama(self, progress: Progress) -> None:
+        """只安装 llama.cpp 运行时，不牵涉模型文件。"""
+        llm_runtime.ensure_runtime(progress)
 
     def _install_asr(self, progress: Progress) -> None:
-        deps = ["funasr>=1.3.27", "modelscope>=1.11", "sentencepiece",
-                "tiktoken", "safetensors"]
+        deps = _req("funasr", "modelscope", "sentencepiece", "tiktoken", "safetensors")
         if not _find_spec("torch"):
-            deps.append("torch")
+            deps += _req("torch")
         if not _find_spec("torchaudio"):
-            deps.append("torchaudio")
+            deps += _req("torchaudio")
         self._pip(deps, progress)
         asr.download_models(progress)
 
     def _install_ocr(self, progress: Progress) -> None:
-        deps = ["rapidocr-onnxruntime>=1.3", "opencv-python>=4.8"]
+        deps = _req("rapidocr", "opencv-python")
         if not (_find_spec("onnxruntime") or _find_spec("onnxruntime_gpu")):
-            deps.append("onnxruntime>=1.16")
+            deps += _req("onnxruntime")
         self._pip(deps, progress)
 
     def _pip(self, packages: list, progress: Progress) -> None:
