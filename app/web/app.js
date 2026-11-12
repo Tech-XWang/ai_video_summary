@@ -146,6 +146,13 @@
       else out[k] = node.value;
     });
     out.llm_source = getLlmSource();
+    // local 模式只用本地 llama-server：public 的地址/密钥/模型名是隐藏字段，
+    // 不能把历史保存的值带进任务，否则会误连到外部接口
+    if (out.llm_source !== "public") {
+      out.base_url = "";
+      out.api_key = "";
+      out.model = "";
+    }
     return out;
   }
 

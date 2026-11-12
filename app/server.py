@@ -89,6 +89,9 @@ def create_app(token: str) -> FastAPI:
         mode = req.mode if req.mode in ("auto", "manual") else "auto"
         if mode == "manual" and not (req.use_subtitle or req.use_asr or req.use_ocr):
             raise HTTPException(status_code=400, detail="手动模式至少勾选一个数据源")
+        # local 模式忽略 public 的地址/密钥/模型名，避免误连外部接口
+        llm_source = req.llm_source if req.llm_source in ("local", "public") else "local"
+        public = llm_source == "public"
         params = JobParams(
             url=req.url.strip(),
             platform=req.platform,
@@ -102,10 +105,10 @@ def create_app(token: str) -> FastAPI:
             ocr_region=req.ocr_region,
             asr_device=req.asr_device,
             hotword=req.hotword,
-            model=req.model,
-            base_url=req.base_url,
-            api_key=req.api_key,
-            llm_source=req.llm_source,
+            model=req.model if public else "",
+            base_url=req.base_url if public else "",
+            api_key=req.api_key if public else "",
+            llm_source=llm_source,
             max_chars=req.max_chars,
             out_dir=OUT_DIR,
             keep_temp=req.keep_temp,
