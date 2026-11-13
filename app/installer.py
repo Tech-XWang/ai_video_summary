@@ -154,7 +154,8 @@ class EnvManager:
         llm_runtime.ensure_runtime(progress)
 
     def _install_asr(self, progress: Progress) -> None:
-        deps = _req("funasr", "modelscope", "sentencepiece", "tiktoken", "safetensors")
+        # sentencepiece / tiktoken / safetensors 由 funasr 依赖自动带入
+        deps = _req("funasr", "modelscope", "transformers")
         if not _find_spec("torch"):
             deps += _req("torch")
         if not _find_spec("torchaudio"):
@@ -163,7 +164,8 @@ class EnvManager:
         asr.download_models(progress)
 
     def _install_ocr(self, progress: Progress) -> None:
-        deps = _req("rapidocr", "opencv-python")
+        # cv2 由 rapidocr 依赖的 opencv-python-headless 提供
+        deps = _req("rapidocr")
         if not (_find_spec("onnxruntime") or _find_spec("onnxruntime_gpu")):
             deps += _req("onnxruntime")
         self._pip(deps, progress)

@@ -79,7 +79,7 @@ def missing_dependencies() -> List[str]:
     """只做轻量检测，不 import torch/funasr，避免 GUI 轮询时初始化 CUDA。"""
     _fix_import_path()
     return [
-        name for name in ("funasr", "torch", "torchaudio", "modelscope",
+        name for name in ("funasr", "torch", "torchaudio", "modelscope", "transformers",
                           "sentencepiece", "tiktoken", "safetensors")
         if not _find_spec(name)
     ]
