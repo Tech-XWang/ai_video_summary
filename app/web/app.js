@@ -200,7 +200,10 @@
           Math.abs(data.model.size_gb - data.recommended.size_gb) < 0.2;
         // asr / ocr / ffmpeg / llama.cpp 已就绪时禁用安装按钮，避免重复执行安装
         var ready = row.key !== "llm" && !!data.ok;
-        btn.disabled = !!busy || unsupported || sameAsRecommended || ready;
+        // 显存不足时本地 LLM 无法运行，装 llama.cpp 没有意义，也避免误触长时间下载
+        var unusable = row.key === "llama" && env.llm && env.llm.state === "unsupported";
+        btn.disabled = !!busy || unsupported || sameAsRecommended || ready || unusable;
+        if (unusable) btn.title = "当前显存不支持本地 LLM，无需安装 llama.cpp";
       }
     });
   }

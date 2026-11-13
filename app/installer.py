@@ -145,6 +145,12 @@ class EnvManager:
 
     def _install_llama(self, progress: Progress) -> None:
         """只安装 llama.cpp 运行时，不牵涉模型文件。"""
+        gpu = llm_runtime.gpu_backend()
+        if llm_runtime.recommend(gpu["vram_gb"]) is None:
+            mem = "统一内存" if gpu["shared_mem"] else "显存"
+            raise RuntimeError(
+                f"{mem} {gpu['vram_gb']:.1f}GB ≤ 6GB，不支持本地 LLM，无需安装 llama.cpp"
+            )
         llm_runtime.ensure_runtime(progress)
 
     def _install_asr(self, progress: Progress) -> None:

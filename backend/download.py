@@ -34,7 +34,8 @@ def download_file(url: str, dest: str, progress: Optional[Progress] = None,
         headers.update(extra_headers)
     if pos:
         headers["Range"] = f"bytes={pos}-"
-    with requests.get(url, headers=headers, stream=True, timeout=30, allow_redirects=True) as r:
+    with requests.get(url, headers=headers, stream=True, timeout=(15, 60),
+                      allow_redirects=True) as r:
         if r.status_code == 416 and os.path.isfile(part):
             os.replace(part, dest)
             return
@@ -79,11 +80,13 @@ def _download_asset(asset: dict, dest: str, progress: Optional[Progress] = None)
     if asset.get("browser_download_url"):
         candidates.append((str(asset["browser_download_url"]), None))
     last_err = None
-    for _ in range(2):
-        for url, headers in candidates:
-            try:
-                download_file(url, dest, progress, headers)
-                return
-            except Exception as e:  # noqa: BLE001
-                last_err = e
+    for url, headers in candidates:
+        try:
+            if progress is not None:
+                # 连接阶段可能长时间无输出，先给界面一个“仍在尝试”的提示
+                progress(-1.0, "连接下载源…")
+            download_file(url, dest, progress, headers)
+            return
+        except Exception as e:  # noqa: BLE001
+            last_err = e
     raise RuntimeError(f"下载失败（可检查网络或代理）：{last_err}")
