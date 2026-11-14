@@ -84,7 +84,7 @@
 
   // ---------- 配置 ----------
   var CONFIG_FIELDS = ["mode", "part", "use_subtitle", "use_asr", "use_ocr",
-                       "ocr_region", "asr_device", "hotword", "max_chars", "keep_llm",
+                       "ocr_region", "ocr_fps", "asr_device", "hotword", "max_chars", "keep_llm",
                        "base_url", "api_key", "model"];
 
   function getLlmSource() {

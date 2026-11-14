@@ -42,6 +42,7 @@ class TaskRequest(BaseModel):
     use_asr: bool = True
     use_ocr: bool = True
     ocr_region: str = "bottom"
+    ocr_fps: float = OCR_FPS
     asr_device: str = "auto"
     hotword: str = ""
     max_chars: int = 8000
@@ -92,6 +93,7 @@ def create_app(token: str) -> FastAPI:
         # local 模式忽略 public 的地址/密钥/模型名，避免误连外部接口
         llm_source = req.llm_source if req.llm_source in ("local", "public") else "local"
         public = llm_source == "public"
+        ocr_fps = req.ocr_fps if req.ocr_fps and 4 >= req.ocr_fps > 0 else OCR_FPS
         params = JobParams(
             url=req.url.strip(),
             platform=req.platform,
@@ -100,7 +102,7 @@ def create_app(token: str) -> FastAPI:
             use_subtitle=req.use_subtitle,
             use_asr=req.use_asr,
             use_ocr=req.use_ocr,
-            ocr_fps=OCR_FPS,
+            ocr_fps=ocr_fps,
             ocr_diff=OCR_DIFF,
             ocr_region=req.ocr_region,
             asr_device=req.asr_device,

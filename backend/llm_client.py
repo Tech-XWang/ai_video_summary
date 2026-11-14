@@ -237,8 +237,6 @@ def _public_error(e: Exception) -> RuntimeError:
 
 def _public_llm_call(client, model: str, system: str, user: str, max_tokens: int) -> str:
     """public 模式的生成函数：标准 OpenAI 兼容请求，失败直接上抛，不回退本地。"""
-    log(f"[LLM 请求] messages.system:\n{system}", level="debug")
-    log(f"[LLM 请求] messages.user:\n{user}", level="debug")
     try:
         resp = client.chat.completions.create(
             model=model,
@@ -254,14 +252,11 @@ def _public_llm_call(client, model: str, system: str, user: str, max_tokens: int
         raise RuntimeError(
             f"外部 LLM 返回空内容（finish_reason={resp.choices[0].finish_reason}）"
         )
-    log(f"[LLM 响应] {text}", level="debug")
     return text
 
 
 def _llm_call(client, model: str, system: str, user: str, max_tokens: int) -> str:
     """调用本地模型。默认开启思考（中等强度）；若思考吃满 token 导致正文为空，再关闭思考兜底。"""
-    log(f"[LLM 请求] messages.system:\n{system}\n", level="debug")
-    log(f"[LLM 请求] messages.user:\n{user}\n", level="debug")
     plans = [
         ({"chat_template_kwargs": {"enable_thinking": True, "reasoning_effort": LLM_REASONING_EFFORT}},
          max_tokens),
@@ -286,7 +281,6 @@ def _llm_call(client, model: str, system: str, user: str, max_tokens: int) -> st
         msg = resp.choices[0].message
         text = (msg.content or "").strip()
         if text:
-            log(f"[LLM 响应] {text}", level="debug")
             return text
         reason = getattr(msg, "reasoning_content", "") or ""
         log(f"[Warning] LLM返回空正文（finish={resp.choices[0].finish_reason}，思考 {len(reason)} 字）…")

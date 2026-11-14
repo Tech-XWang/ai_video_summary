@@ -29,8 +29,8 @@ ASR_VAD_REPO = "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
 ASR_MODEL_DIR = os.path.join(ASR_MODELS_DIR, "Fun-ASR-Nano-2512")
 ASR_VAD_DIR = os.path.join(ASR_MODELS_DIR, "fsmn-vad")
 
-# OCR 抽帧固定参数（GUI 不再暴露，保留给 CLI）
-OCR_FPS = 1.0
+# OCR 抽帧默认参数（GUI 可调整帧率；差异阈值保留给 CLI）
+OCR_FPS = 0.5   # 每 2 秒抽 1 帧
 OCR_DIFF = 2.0
 
 # 本地 llama-server 运行时：项目内 tools/llama.cpp（目录可通过 junction 指向外部运行时）

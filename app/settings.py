@@ -9,7 +9,7 @@ import json
 import os
 from typing import Any, Dict
 
-from backend.config import CACHE_DIR, OUT_DIR
+from backend.config import CACHE_DIR, OCR_FPS, OUT_DIR
 
 CONFIG_PATH = os.path.join(CACHE_DIR, "config.json")
 PERSIST_KEYS = ("llm_source", "keep_llm", "base_url", "api_key", "model")
@@ -21,6 +21,7 @@ DEFAULTS: Dict[str, Any] = {
     "use_asr": True,
     "use_ocr": True,
     "ocr_region": "bottom",
+    "ocr_fps": OCR_FPS,
     "asr_device": "auto",
     "hotword": "",
     "max_chars": 8000,

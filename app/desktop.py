@@ -54,8 +54,6 @@ def _wait_ready(port: int, timeout: float = 20.0) -> bool:
 def main() -> int:
     utils.setup_stdio()
     print("** 此为AI视频总结后台程序，请勿手动关闭，关闭前端后会自动退出 **", flush=True)
-    # GUI 的后台 cmd 输出完整日志（含 debug 级 LLM 请求内容），前端仍只显示 info
-    utils.set_console_debug(True)
     token = secrets.token_urlsafe(16)
     port = _free_port()
     app = create_app(token)

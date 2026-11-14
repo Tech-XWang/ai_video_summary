@@ -18,7 +18,7 @@ import sys
 
 from app.service import JobParams, NoContentError, run_job
 from backend import bilibili_api
-from backend.config import OUT_DIR
+from backend.config import OCR_FPS, OUT_DIR
 from backend.utils import log, setup_stdio
 
 # 调试开关：由 --debug 参数打开，异常时输出完整堆栈
@@ -39,7 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="auto=人工字幕 > AI字幕 > 本地ASR，OCR 始终执行；"
                          "subtitle/asr/ocr/all=手动模式，按指定来源获取（默认 auto）")
     ap.add_argument("--part", type=int, default=0, help="分P 序号，默认取链接里的 p 或第 1P")
-    ap.add_argument("--ocr-fps", type=float, default=1.0, help="OCR 抽帧帧率（默认 1）")
+    ap.add_argument("--ocr-fps", type=float, default=OCR_FPS,
+                    help=f"OCR 抽帧帧率（默认 {OCR_FPS}")
     ap.add_argument("--ocr-diff", type=float, default=2.0,
                     help="字幕带帧间差异阈值，小于该值跳过 OCR（默认 2.0）")
     ap.add_argument("--ocr-region", default="bottom", choices=["bottom", "center", "full"],
