@@ -133,7 +133,7 @@
       r.checked = (r.value === source);
     });
     syncLlmSource();
-    syncMode();
+    syncPlatform();
   }
 
   function currentConfig() {
@@ -156,11 +156,30 @@
     return out;
   }
 
+  function isLocalPlatform() {
+    return el("platform").value === "local";
+  }
+
+  function syncPlatform() {
+    var local = isLocalPlatform();
+    el("url").placeholder = local
+      ? "本地视频文件路径，如 D:\\videos\\a.mp4"
+      : "BV1xx 或 https://b23.tv/...";
+    // 本地文件没有分 P 和字幕源
+    el("part").disabled = local;
+    if (local) {
+      el("part").value = 0;
+      el("use_subtitle").checked = false;
+    }
+    syncMode();
+  }
+
   function syncMode() {
     var manual = el("mode").value === "manual";
+    var local = isLocalPlatform();
     ["use_subtitle", "use_asr", "use_ocr"].forEach(function (id) {
       var node = el(id);
-      if (node) node.disabled = !manual;
+      if (node) node.disabled = !manual || (local && id === "use_subtitle");
     });
   }
 
@@ -386,8 +405,9 @@
         return;
       }
       if (cfg.mode === "manual") {
+        var local = el("platform").value === "local";
         var missing = [];
-        if (cfg.use_subtitle && !(env.cookie && env.cookie.ok)) {
+        if (!local && cfg.use_subtitle && !(env.cookie && env.cookie.ok)) {
           missing.push("B站字幕依赖 Cookie，当前未配置");
         }
         if (cfg.use_asr && !(env.asr && env.asr.ok)) {
@@ -399,7 +419,8 @@
         if ((cfg.use_asr || cfg.use_ocr) && !(env.ffmpeg && env.ffmpeg.ok)) {
           missing.push("ffmpeg 未安装");
         }
-        if (!cfg.use_subtitle && !cfg.use_asr && !cfg.use_ocr) {
+        if (local ? (!cfg.use_asr && !cfg.use_ocr)
+                  : (!cfg.use_subtitle && !cfg.use_asr && !cfg.use_ocr)) {
           missing.push("手动模式至少勾选一个数据源");
         }
         if (missing.length) {
@@ -463,6 +484,7 @@
     el("cancel").addEventListener("click", cancelTask);
     el("refresh").addEventListener("click", loadHistory);
     el("mode").addEventListener("change", syncMode);
+    el("platform").addEventListener("change", syncPlatform);
     document.querySelectorAll('input[name="llm_source"]').forEach(function (r) {
       r.addEventListener("change", function () {
         syncLlmSource();

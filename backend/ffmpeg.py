@@ -67,6 +67,22 @@ def media_duration(src: str) -> float:
         return 0.0
 
 
+def probe_streams(src: str) -> List[str]:
+    """返回媒体包含的流类型（video / audio / subtitle…），用于校验本地文件。"""
+    probe = find_ffprobe()
+    if not probe:
+        raise RuntimeError("未找到 ffprobe，请到「本地状态」安装 ffmpeg")
+    try:
+        out = subprocess.run(
+            [probe, "-v", "error", "-show_entries", "stream=codec_type",
+             "-of", "default=nw=1:nk=1", src],
+            capture_output=True, text=True, errors="replace", timeout=30,
+        ).stdout
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"读取媒体信息失败：{e}")
+    return [line.strip() for line in out.splitlines() if line.strip()]
+
+
 def run_ffmpeg(cmd: List[str], src: str, desc: str, stage: str = "media") -> None:
     """执行 ffmpeg，用 -progress 管道按媒体时长驱动 tqdm，并上报进度。"""
     exe = find_ffmpeg()

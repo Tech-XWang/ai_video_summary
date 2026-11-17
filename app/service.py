@@ -123,6 +123,9 @@ def run_job(p: JobParams) -> dict:
     """执行一次完整任务，返回 {files, out_dir, info, timeline, coverage}。"""
     t_all = time.time()
     platform = get_platform(p.platform)
+    # 本地文件没有字幕源，也不需要 Cookie；由平台适配器自行声明能力
+    needs_cookie = bool(getattr(platform, "needs_cookie", True))
+    has_subtitles = bool(getattr(platform, "supports_subtitles", True))
 
     # LLM 缺失一律终止；手动模式勾选的本地依赖缺失也终止；自动模式非 LLM 缺失只跳过
     if not p.no_llm:
@@ -146,8 +149,10 @@ def run_job(p: JobParams) -> dict:
                     + "。请到“高级配置 → 本地状态”下载模型、安装 llama.cpp 后再执行。"
                 )
 
-    cookie = platform.load_cookie(p.cookie, p.cookie_file)
+    cookie = platform.load_cookie(p.cookie, p.cookie_file) if needs_cookie else ""
     want_sub, want_asr, want_ocr = _wants(p)
+    if not has_subtitles:
+        want_sub = False
     ffmpeg_ok = ffmpeg.ffmpeg_status().get("ok", False)
     if p.mode == "manual":
         missing = []
@@ -165,7 +170,7 @@ def run_job(p: JobParams) -> dict:
                 + "。请先安装，或取消对应勾选。"
             )
     else:
-        if not cookie:
+        if needs_cookie and not cookie:
             log("提示：未配置 Cookie，自动模式将跳过 B 站字幕，改用 ASR/OCR。")
             platform.print_cookie_help()
         if want_asr and not asr_mod.check_installed():
@@ -261,7 +266,10 @@ def run_job(p: JobParams) -> dict:
                 log("  已获取 B站 AI 字幕，自动跳过本地 ASR")
             want_asr = False
     else:
-        log("  跳过 B 站字幕（手动模式未勾选）")
+        if not has_subtitles:
+            log("  跳过字幕获取（当前平台没有字幕源）")
+        else:
+            log("  跳过 B 站字幕（手动模式未勾选）")
 
     parts = []
     if want_sub:
