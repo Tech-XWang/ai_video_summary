@@ -359,21 +359,23 @@ def llm_summary(groups: Dict[str, List[Cue]], timeline: List[Cue], title: str, u
         sub_merge = sub_key not in INDEPENDENT_SRC   # 人工/AI 字幕保持每条独立
         sub_label = SRC_DESC.get(sub_key, "字幕") if sub_key else "无"
         ranges = chunk_ranges(timeline, max_chars)
-        total = len(ranges)
+        chunks = len(ranges)
+        # 进度总步数 = 每个分块一步 + 最终整合一步；进度按“已完成步数/总步数”推进
+        steps = chunks + 1
         log(f"    字幕源：{sub_label}（{len(sub_cues)} 条）｜ASR：{len(asr_cues)} 条"
-            f"｜OCR：{len(ocr_cues)} 条｜分块 {total} 个")
+            f"｜OCR：{len(ocr_cues)} 条｜分块 {chunks} 个")
         points: List[str] = []
 
         for i, (t0, t1) in enumerate(ranges, 1):
             check_cancel()
-            report("llm", (i - 1) / total, f"分段提炼 {i}/{total}")
-            log(f"    分段提炼 {i}/{total} …")
+            report("llm", (i - 1) / steps, f"分段提炼 {i}/{chunks}")
+            log(f"    分段提炼 {i}/{chunks} …")
             sub_text = track_text(sub_cues, t0, t1, merge=sub_merge) or "（本段无字幕）"
             asr_text = track_text(asr_cues, t0, t1) or "（本段无ASR）"
             ocr_text = track_text(ocr_cues, t0, t1) or "（本段无OCR）"
             user = prompts.USER_CHUNK.format(
                 date=today, title=title, desc=desc_text, tags=tags_text,
-                i=i, n=total, start=fmt_ts(t0), end=fmt_ts(t1),
+                i=i, n=chunks, start=fmt_ts(t0), end=fmt_ts(t1),
                 sub_label=sub_label, sub_text=sub_text, asr_text=asr_text,
                 ocr_text=ocr_text,
             )
@@ -381,12 +383,14 @@ def llm_summary(groups: Dict[str, List[Cue]], timeline: List[Cue], title: str, u
             if txt:
                 points.append(txt)
             else:
-                log(f"    分段 {i}/{total} 提炼失败，用原始文本代替")
+                log(f"    分段 {i}/{chunks} 提炼失败，用原始文本代替")
                 fallback = sub_text if sub_cues else (ocr_text if ocr_text else asr_cues)
                 points.append(f"[第{i}段原始转写，LLM 提炼失败]\n{fallback[:4000]}")
+            report("llm", i / steps, f"分段提炼 {i}/{chunks} 完成")
 
-        log(f"    整合全文（{total} 段要点）…")
-        report("llm", 1.0, "整合全文")
+        log(f"    整合全文（{chunks} 段要点）…")
+        # 最后一个分块完成后进度是 chunks/steps，最终整合开始时停在 (steps-1)/steps
+        report("llm", (steps - 1) / steps, "整合全文")
         user = prompts.USER_FINAL.format(
             date=today, title=title, duration=fmt_ts(duration),
             desc=desc_text, tags=tags_text,
@@ -396,6 +400,7 @@ def llm_summary(groups: Dict[str, List[Cue]], timeline: List[Cue], title: str, u
         if not body:
             log("  整合失败：模型未返回有效内容")
             return None
+        report("llm", 1.0, "整合完成")
         return body
     finally:
         if not keep_llm:

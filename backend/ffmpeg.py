@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """媒体处理：ffmpeg/ffprobe 封装、音频转码、抽帧。"""
 
+import json
 import os
 import shutil
 import subprocess
@@ -12,6 +13,9 @@ from tqdm import tqdm
 
 from .config import FFMPEG_DIR
 from .utils import log, report
+
+# ffmpeg 能直接转成 SRT 的文本字幕编码（图形字幕如 PGS/DVD 不在此列）
+TEXT_SUB_CODECS = {"subrip", "srt", "ass", "ssa", "mov_text", "webvtt", "text"}
 
 
 def _local_tool(name: str) -> Optional[str]:
@@ -67,20 +71,61 @@ def media_duration(src: str) -> float:
         return 0.0
 
 
-def probe_streams(src: str) -> List[str]:
-    """返回媒体包含的流类型（video / audio / subtitle…），用于校验本地文件。"""
+def probe_media_info(src: str) -> dict:
+    """返回 {has_video, has_audio, duration, subtitle_index}；封面图不算视频画面。"""
     probe = find_ffprobe()
     if not probe:
         raise RuntimeError("未找到 ffprobe，请到「本地状态」安装 ffmpeg")
     try:
         out = subprocess.run(
-            [probe, "-v", "error", "-show_entries", "stream=codec_type",
-             "-of", "default=nw=1:nk=1", src],
+            [probe, "-v", "error", "-print_format", "json",
+             "-show_format", "-show_streams", src],
             capture_output=True, text=True, errors="replace", timeout=30,
         ).stdout
+        data = json.loads(out or "{}")
     except Exception as e:  # noqa: BLE001
         raise RuntimeError(f"读取媒体信息失败：{e}")
-    return [line.strip() for line in out.splitlines() if line.strip()]
+    streams = data.get("streams") or []
+    has_video = any(
+        s.get("codec_type") == "video"
+        and not (s.get("disposition") or {}).get("attached_pic")
+        for s in streams
+    )
+    has_audio = any(s.get("codec_type") == "audio" for s in streams)
+    subtitle_index = None
+    for s in streams:
+        if (s.get("codec_type") == "subtitle"
+                and str(s.get("codec_name") or "").lower() in TEXT_SUB_CODECS):
+            try:
+                subtitle_index = int(s.get("index"))
+            except (TypeError, ValueError):
+                subtitle_index = None
+            break
+    try:
+        duration = float((data.get("format") or {}).get("duration") or 0)
+    except (TypeError, ValueError):
+        duration = 0.0
+    return {"has_video": has_video, "has_audio": has_audio,
+            "duration": max(0.0, duration), "subtitle_index": subtitle_index}
+
+
+def extract_subtitle_text(src: str, stream_index: int) -> str:
+    """把指定文本字幕流转成 SRT 文本（UTF-8），失败抛 RuntimeError。"""
+    exe = find_ffmpeg()
+    if not exe:
+        raise RuntimeError("未找到 ffmpeg，请到「本地状态」安装 ffmpeg")
+    try:
+        out = subprocess.run(
+            [exe, "-v", "error", "-i", src, "-map", f"0:{stream_index}",
+             "-f", "srt", "-"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=180,
+        )
+    except Exception as e:  # noqa: BLE001
+        raise RuntimeError(f"提取内嵌字幕失败：{e}")
+    if out.returncode != 0:
+        raise RuntimeError(f"提取内嵌字幕失败：{(out.stderr or '').strip()[:200]}")
+    return out.stdout
 
 
 def run_ffmpeg(cmd: List[str], src: str, desc: str, stage: str = "media") -> None:

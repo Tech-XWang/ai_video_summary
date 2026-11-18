@@ -153,10 +153,21 @@ def run_job(p: JobParams) -> dict:
     want_sub, want_asr, want_ocr = _wants(p)
     if not has_subtitles:
         want_sub = False
+
+    # 平台可声明文件包含哪些轨道：纯音频不跑 OCR，纯视频不跑 ASR
+    has_video = has_audio = True
+    probe_media = getattr(platform, "probe_media", None)
+    if probe_media is not None:
+        media = probe_media(p.url)
+        has_video = bool(media.get("has_video", True))
+        has_audio = bool(media.get("has_audio", True))
+        want_ocr = want_ocr and has_video
+        want_asr = want_asr and has_audio
+
     ffmpeg_ok = ffmpeg.ffmpeg_status().get("ok", False)
     if p.mode == "manual":
         missing = []
-        if want_sub and not cookie:
+        if want_sub and needs_cookie and not cookie:
             missing.append("B站字幕（未配置 Cookie）")
         if want_asr and not asr_mod.check_installed():
             missing.append("本地 ASR（未安装）")
@@ -256,11 +267,16 @@ def run_job(p: JobParams) -> dict:
     if want_sub:
         if not subs:
             if p.mode == "auto":
-                log("  未获取到 B 站字幕，自动模式改用本地 ASR（若可用）")
+                if needs_cookie:
+                    log("  未获取到 B 站字幕，自动模式改用本地 ASR（若可用）")
+                else:
+                    log("  未获取到内嵌字幕，自动模式改用本地 ASR（若可用）")
             else:
-                log("  未获取到 B 站字幕")
+                log("  未获取到 B 站字幕" if needs_cookie else "  未获取到内嵌字幕")
         elif p.mode == "auto" and sub_src in ("cc", "ai-sub"):
-            if sub_src == "cc":
+            if not needs_cookie:
+                log("  已获取内嵌字幕，自动跳过本地 ASR")
+            elif sub_src == "cc":
                 log("  已获取人工字幕，自动跳过 B站 AI 字幕与本地 ASR")
             else:
                 log("  已获取 B站 AI 字幕，自动跳过本地 ASR")
@@ -268,8 +284,10 @@ def run_job(p: JobParams) -> dict:
     else:
         if not has_subtitles:
             log("  跳过字幕获取（当前平台没有字幕源）")
-        else:
+        elif needs_cookie:
             log("  跳过 B 站字幕（手动模式未勾选）")
+        else:
+            log("  跳过字幕获取（手动模式未勾选）")
 
     parts = []
     if want_sub:
@@ -302,9 +320,14 @@ def run_job(p: JobParams) -> dict:
             log("  音频未就绪，跳过 ASR")
             report("asr", 1.0, "已跳过")
     else:
-        if p.mode == "auto" and subs:
-            log("  跳过 ASR（已使用 B 站字幕；音频已下载缓存）"
-                if audio_path else "  跳过 ASR（已使用 B 站字幕）")
+        if not has_audio:
+            log("  跳过 ASR（该文件没有音轨）")
+        elif p.mode == "auto" and subs:
+            if needs_cookie:
+                log("  跳过 ASR（已使用 B 站字幕；音频已下载缓存）"
+                    if audio_path else "  跳过 ASR（已使用 B 站字幕）")
+            else:
+                log("  跳过 ASR（已使用内嵌字幕）")
         elif p.mode == "auto":
             log("  跳过 ASR（未启用或组件缺失）")
         else:
@@ -323,7 +346,9 @@ def run_job(p: JobParams) -> dict:
             log("  视频流未就绪，跳过 OCR")
             report("ocr", 1.0, "已跳过")
     else:
-        if p.mode == "manual":
+        if not has_video:
+            log("  跳过 OCR（该文件没有视频画面）")
+        elif p.mode == "manual":
             log("  跳过 OCR（手动模式未勾选）")
         else:
             log("  跳过 OCR（--no-ocr 或组件缺失）")

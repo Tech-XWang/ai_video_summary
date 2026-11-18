@@ -163,23 +163,22 @@
   function syncPlatform() {
     var local = isLocalPlatform();
     el("url").placeholder = local
-      ? "本地视频文件路径，如 D:\\videos\\a.mp4"
+      ? "本地视频/音频文件路径，如 D:\\videos\\a.mp4"
       : "BV1xx 或 https://b23.tv/...";
-    // 本地文件没有分 P 和字幕源
+    el("subtitle_label").textContent = local ? "内嵌字幕" : "B站字幕";
+    // 本地文件没有分 P
     el("part").disabled = local;
     if (local) {
       el("part").value = 0;
-      el("use_subtitle").checked = false;
     }
     syncMode();
   }
 
   function syncMode() {
     var manual = el("mode").value === "manual";
-    var local = isLocalPlatform();
     ["use_subtitle", "use_asr", "use_ocr"].forEach(function (id) {
       var node = el(id);
-      if (node) node.disabled = !manual || (local && id === "use_subtitle");
+      if (node) node.disabled = !manual;
     });
   }
 
@@ -419,8 +418,7 @@
         if ((cfg.use_asr || cfg.use_ocr) && !(env.ffmpeg && env.ffmpeg.ok)) {
           missing.push("ffmpeg 未安装");
         }
-        if (local ? (!cfg.use_asr && !cfg.use_ocr)
-                  : (!cfg.use_subtitle && !cfg.use_asr && !cfg.use_ocr)) {
+        if (!cfg.use_subtitle && !cfg.use_asr && !cfg.use_ocr) {
           missing.push("手动模式至少勾选一个数据源");
         }
         if (missing.length) {
