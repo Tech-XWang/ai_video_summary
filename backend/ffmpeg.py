@@ -199,8 +199,11 @@ def extract_frames(video: str, frames_dir: str, fps: float, region: str) -> List
             vf += ",crop=iw:ih*0.3:0:ih*0.7"
         elif region == "center":
             vf += ",crop=iw:ih*0.5:0:ih*0.25"
-        # 宽度超过 1280 时先缩小，减少 jpg 体积、解码和 OCR 开销
-        vf += ",scale='min(1280,iw)':-2"
+        # 宽度先限制到 960，再裁掉左右各 10%（保留中间 80%），
+        # 最后保证最长边不超过 768；小图不放大
+        vf += ",scale='min(960,iw)':-2"
+        vf += ",crop=iw*0.8:ih:iw*0.1:0"
+        vf += ",scale='min(768,iw)':'min(768,ih)':force_original_aspect_ratio=decrease"
         out_pat = os.path.join(frames_dir, "%06d.jpg")
         log(f"  抽帧（fps={fps}, region={region}）……")
         t0 = time.time()

@@ -82,8 +82,8 @@ def run_ocr(video: str, work: str, fps: float, region: str, diff_thr: float = 2.
         log(f"  OCR 依赖缺失（{e}），跳过画面识别")
         return []
 
-    # 目录名带上 fps/region，换参数重跑时不会误复用旧帧
-    frames_dir = os.path.join(work, f"frames_{fps:g}_{region}")
+    # 目录名带上 fps/region 和抽帧规则版本，换参数重跑时不会误复用旧帧
+    frames_dir = os.path.join(work, f"frames_{fps:g}_{region}_v2")
     files = extract_frames(video, frames_dir, fps, region)
     if not files:
         return []
@@ -109,8 +109,8 @@ def run_ocr(video: str, work: str, fps: float, region: str, diff_thr: float = 2.
     except Exception as e:
         log(f"  [Warn] CUDA 预加载失败，OCR 使用 CPU：{e}")
 
-    # RapidOCR 3.x：参数按 config.yaml 的层级用点号书写；默认 min 模式会把
-    # 1280x216 的字幕条带放大 3 倍以上，这里保持限制最长边 960。
+    # RapidOCR 3.x：参数按 config.yaml 的层级用点号书写；抽帧阶段已把最长边限制到 768，
+    # 这里保留 960 的检测上限，避免其它来源的图被默认 min 模式反向放大。
     # 字幕不会倒置，关掉方向分类；CUDA 开关从 1.x 的 det_use_cuda 移到引擎配置层。
     engine = RapidOCR(
         params={
