@@ -383,11 +383,17 @@ def run_job(p: JobParams) -> dict:
     summary = None
     if not p.no_llm:
         log("\n[6/6] LLM 提炼……")
-        summary = llm_client.llm_summary(
-            groups, timeline, info.get("title", ""), video_url, duration,
-            p.base_url, p.model, p.max_chars, keep_llm=p.keep_llm,
-            desc=desc, tags=tags, llm_source=p.llm_source, api_key=p.api_key,
-        )
+        t_llm = time.time()
+        try:
+            summary = llm_client.llm_summary(
+                groups, timeline, info.get("title", ""), video_url, duration,
+                p.base_url, p.model, p.max_chars, keep_llm=p.keep_llm,
+                desc=desc, tags=tags, llm_source=p.llm_source, api_key=p.api_key,
+            )
+        except BaseException:
+            log(f"  LLM 提炼失败，用时 {time.time() - t_llm:.1f}s")
+            raise
+        log(f"  LLM 提炼{'完成' if summary else '未产出内容'}，用时 {time.time() - t_llm:.1f}s")
     else:
         log("\n[6/6] 跳过 LLM")
         report("llm", 1.0, "已跳过")
